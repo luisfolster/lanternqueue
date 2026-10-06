@@ -24,7 +24,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Abra `http://localhost:3000`. A página deve mostrar **API e banco disponíveis**. O backend expõe `http://localhost:8000/api/v1/health`; a resposta esperada é `{"status":"up","database":"up"}`. A documentação OpenAPI gerada pelo FastAPI fica em `http://localhost:8000/docs`.
+Abra `http://localhost:3000` no navegador (ou use `Start-Process 'http://localhost:3000'` no PowerShell). A página deve mostrar **API e banco disponíveis**. O backend expõe `http://localhost:8000/api/v1/health`; a resposta esperada é `{"status":"up","database":"up"}`. A documentação OpenAPI gerada pelo FastAPI fica em `http://localhost:8000/docs`.
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/api/v1/health
