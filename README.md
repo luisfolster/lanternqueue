@@ -1,98 +1,90 @@
 # LanternQueue
 
-Plataforma de gestão de suporte de TI em desenvolvimento. O objetivo é manter solicitações, decisões e soluções no mesmo histórico, para que o atendimento não dependa de conversas dispersas.
+LanternQueue é uma aplicação local para registrar e acompanhar solicitações de suporte de TI. Solicitantes abrem chamados e acompanham respostas; técnicos assumem o atendimento, registram notas internas e documentam a resolução; administradores organizam categorias e papéis.
 
-**Estado atual:** fundação M0/M1. Existe uma API com verificações de saúde, uma página inicial que consulta a API e um PostgreSQL configurado no Docker Compose. Ainda não existem contas, autenticação, chamados, migrations ou dados de demonstração. Nenhum recurso de suporte de TI está pronto para uso.
+## Estado atual
 
-O código é verificado por testes da API, lint, formatação, checagem de tipos, build do frontend e um teste de integração dos três serviços no GitHub Actions. Isso valida a fundação; não valida ainda um fluxo de chamados.
+A aplicação permite cadastro, login, logout, criação e consulta de chamados, filtros, paginação, atribuição, transições de situação, mensagens, notas internas, anexos, histórico de alterações e administração básica. O backend aplica as regras de acesso. O banco usa migrations Alembic e dados fictícios locais.
 
-## Problema e direção
+Ainda faltam recursos do escopo ampliado: recuperação de senha, observabilidade mais completa e deploy público. Veja [docs/MILESTONES.md](docs/MILESTONES.md). A stack local é uma demonstração funcional; não foi configurada para uso público com dados reais.
 
-O projeto vai organizar solicitações de suporte de TI, atribuição de responsáveis e histórico de atendimento em uma aplicação web. A primeira versão será um monólito modular: um backend FastAPI, um frontend Next.js e um banco PostgreSQL. Cada domínio será acrescentado quando houver um fluxo completo a implementar.
+## Executar no Windows
 
-## Pré-requisitos
-
-- Git para versionamento.
-- Docker Desktop com o comando `docker compose` para executar os três serviços localmente. No Windows, Docker Desktop requer o backend de virtualização adequado configurado.
-- Para rodar fora do Docker: Python 3.12, Node.js 22 e pnpm 11.19.0. Essa rota é opcional. O CSS é próprio do projeto; Tailwind será avaliado quando houver componentes de produto a construir.
-
-## Quick start no Windows / PowerShell
-
-Na raiz deste repositório:
+Pré-requisito: Docker Desktop funcionando com `docker compose`. Na raiz do repositório, no PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
-docker compose up --build -d
+docker compose up --build -d --wait
 docker compose ps
 ```
 
-Abra `http://localhost:3000` no navegador (ou use `Start-Process 'http://localhost:3000'` no PowerShell). A página deve mostrar **API e banco disponíveis**. O backend expõe `http://localhost:8000/api/v1/health`; a resposta esperada é `{"status":"up","database":"up"}`. A documentação OpenAPI gerada pelo FastAPI fica em `http://localhost:8000/docs`.
+Abra [http://localhost:3000](http://localhost:3000). A API fica em [http://localhost:8000/docs](http://localhost:8000/docs). O Compose aplica as migrations antes de iniciar a API e, com `SEED_DEMO=true`, cria categorias, três contas fictícias e um chamado de exemplo. Reexecutar o seed não duplica esses dados.
+
+Contas locais de demonstração (senha definida por `DEMO_PASSWORD` no `.env.example`):
+
+| Papel | E-mail |
+| --- | --- |
+| Solicitante | `marina@example.test` |
+| Técnico | `rafael@example.test` |
+| Administrador | `aline@example.test` |
+
+O valor de exemplo da senha é `lanternqueue-demo-2026`. Ele serve apenas para o ambiente local. Antes de expor o serviço em outra máquina, configure senhas próprias, desative `SEED_DEMO` e revise autenticação, HTTPS e operação do banco. As portas do Compose são vinculadas a `127.0.0.1`.
+
+Para verificar os serviços:
 
 ```powershell
 Invoke-RestMethod http://localhost:8000/api/v1/health
-docker compose exec db pg_isready -U lanternqueue -d lanternqueue
+docker compose ps
 docker compose logs --tail=50 backend frontend db
 ```
 
-`pg_isready` deve informar que o banco aceita conexões. O health check da API executa `SELECT 1` no PostgreSQL; a mensagem da página confirma o caminho **frontend → backend → banco**. Se alterar usuário ou nome do banco no `.env`, ajuste os argumentos do comando `pg_isready`.
+O health check deve retornar `{"status":"up","database":"up"}`. Entrar e consultar a fila confirma o caminho frontend → API → PostgreSQL. `docker compose down` encerra os serviços sem apagar o volume do banco. `docker compose down -v` também remove os dados locais; use somente quando quiser reiniciar a demonstração do zero.
 
-Para desligar sem apagar os dados: `docker compose down`. Para apagar também o volume local do banco, use `docker compose down -v` apenas se quiser descartar esses dados.
+## Fluxo para experimentar
 
-## Desenvolvimento sem Docker
+1. Entre como Marina e abra um chamado em **Novo chamado**.
+2. Entre como Aline para atribuir um técnico.
+3. Entre como Rafael para iniciar o atendimento, adicionar uma nota interna e registrar a resolução.
+4. Entre novamente como Marina: ela vê a conversa pública e a resolução, sem acesso à nota interna.
 
-É necessário ter PostgreSQL iniciado separadamente. No PowerShell, na raiz do repositório:
+Contas criadas pela tela de cadastro recebem o papel de solicitante. Apenas administradores podem alterar papéis e criar categorias. Técnicos podem assumir chamados e administrar o atendimento, mas não promover usuários.
+
+## Desenvolvimento e testes
+
+Os prazos de primeira resposta e resolução usam horas corridas por prioridade. A primeira resposta exige uma mensagem pública da equipe; notas internas não param esse relógio. Anexos PDF, PNG, JPG e TXT têm limite de 5 MB, ficam em um volume local e só podem ser baixados por quem tem acesso ao chamado. As regras estão documentadas em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic e PostgreSQL. Frontend: Next.js 16, React, TypeScript e CSS próprio. O backend guarda um hash `scrypt` da senha e apenas o hash SHA-256 dos tokens de sessão; o frontend mantém o token em cookie HttpOnly. O Redis foi adiado porque ainda não há trabalho assíncrono nem cache que o justifique.
+
+Se quiser executar as verificações fora do Docker, instale Python 3.12, Node.js 22 e pnpm 11.19.0. Com o ambiente virtual em `backend/.venv`:
 
 ```powershell
-py -3.12 -m venv backend/.venv
 backend/.venv/Scripts/python.exe -m pip install -e "./backend[dev]"
-$env:DATABASE_URL = "postgresql+psycopg://lanternqueue:lanternqueue_local_only@localhost:5432/lanternqueue"
-backend/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
-```
-
-Em outro terminal:
-
-```powershell
-Set-Location frontend
-pnpm install --frozen-lockfile
-pnpm dev
-```
-
-O frontend usa `http://localhost:8000` quando `BACKEND_INTERNAL_URL` não está definido. Essa rota exige que o banco e o usuário existam com as credenciais indicadas. O Compose é a forma mais simples de preparar o banco nesta etapa.
-
-## Verificações disponíveis
-
-```powershell
-backend/.venv/Scripts/python.exe -m pytest backend/tests
 backend/.venv/Scripts/python.exe -m ruff check backend
 backend/.venv/Scripts/python.exe -m ruff format --check backend
+backend/.venv/Scripts/python.exe -m pytest backend/tests
 Set-Location frontend
+pnpm install --frozen-lockfile
 pnpm lint
 pnpm format:check
 pnpm typecheck
 pnpm build
 ```
 
-Os testes atuais validam o contrato de liveness e readiness da API com um banco substituto. A conexão real é verificada pelo health check quando o Compose está ativo. O workflow em [.github/workflows/ci.yml](.github/workflows/ci.yml) também sobe o Compose e faz requisições ao frontend e à API. Ainda não há teste E2E de uma tarefa de usuário.
+O workflow [CI](.github/workflows/ci.yml) executa essas verificações e sobe os três serviços para um smoke test. Os testes de API cobrem permissões e o fluxo de um chamado, mas ainda não substituem um teste de ponta a ponta da interface.
 
-## Configuração
-
-Copie `.env.example` para `.env` antes do Compose. O arquivo `.env` é ignorado pelo Git. Os valores de exemplo servem apenas para desenvolvimento local. Não exponha essas credenciais em um ambiente acessível externamente. O frontend recebe `BACKEND_INTERNAL_URL` para consultar a API na rede do Compose e `BACKEND_PUBLIC_URL` para montar o link da documentação no navegador. Este último acompanha `BACKEND_PORT`.
-
-## Estrutura
+## Organização
 
 ```text
-backend/        API FastAPI, configuração de banco e testes mínimos
-frontend/       página inicial Next.js e estilos
-docs/           arquitetura e milestones
-.github/        verificações automáticas
-compose.yaml    PostgreSQL, backend e frontend locais
-.env.example    parâmetros locais de exemplo
+backend/app/          API, regras de acesso e modelos de dados
+backend/migrations/   histórico do esquema PostgreSQL
+backend/tests/        testes da API
+frontend/src/app/     páginas e proxy de sessão da aplicação
+docs/                 arquitetura e etapas do produto
+compose.yaml          ambiente local com PostgreSQL, API e frontend
 ```
 
-## Roadmap
-
-Os próximos passos estão em [docs/MILESTONES.md](docs/MILESTONES.md). Usuários, papéis, chamados, comentários, auditoria, SLA, anexos, dashboards e deploy ainda são planejados. Redis, IA e integrações externas não participam da fundação.
+As decisões e os limites atuais estão em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Nenhum arquivo `.env` ou dado real deve ser versionado.
 
 ## Licença
 
-Esta versão inicial não declara uma licença de código aberto. A escolha será feita antes de permitir reutilização ou distribuição do código como projeto open source.
+O repositório ainda não declara uma licença de código aberto. A licença será escolhida antes de autorizar reutilização ou distribuição como software open source.

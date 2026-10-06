@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "LanternQueue | Gestão de suporte de TI",
-  description: "Plataforma de gestão de suporte de TI em desenvolvimento.",
+  description: "Aplicação para registrar, acompanhar e resolver solicitações de suporte de TI.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

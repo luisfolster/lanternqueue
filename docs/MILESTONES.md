@@ -1,18 +1,31 @@
-# Milestones propostos
+# Etapas do LanternQueue
 
-Cada milestone termina com uma demonstração verificável e um Git checkpoint. A ordem pode mudar depois da modelagem detalhada do domínio.
+O roadmap acompanha as entregas deste produto. Cada etapa deve terminar com uma demonstração verificável e documentação correspondente.
 
-| Etapa | Objetivo | Critério de aceite principal |
-| --- | --- | --- |
-| M0/M1 — fundação | Repositório, Compose, PostgreSQL, backend, frontend, health check, CI e documentação inicial | Os três serviços sobem; a página informa a conexão real com API e banco; CI valida build e smoke test |
-| M2 — domínio mínimo | Modelar usuários, categorias e chamados; criar Alembic, primeira migration e seed fictício | Um chamado pode ser criado e consultado pela API com testes de banco |
-| M3 — identidade e acesso | Cadastro, login, logout, papéis e autorização no backend | Operações protegidas rejeitam acesso indevido; testes cobrem permissões |
-| M4 — fluxo de chamados | Transições válidas, atribuição, resolução e interface de uso | Usuário e técnico concluem um fluxo de ponta a ponta |
-| M5 — comentários e auditoria | Comentários públicos, notas internas e eventos de mudança | Histórico preserva quem alterou o quê; visibilidade respeita papéis |
-| M6 — experiência operacional | Dashboards por papel, busca, filtros, paginação e estados de interface | Tarefas frequentes funcionam por teclado e mostram loading/erro/vazio |
-| M7 — SLA e anexos | Regras simples de prazo e arquivos com limites e validação | Prazo e falha de upload são demonstráveis e testados |
-| M8 — qualidade e observabilidade | Testes ampliados, logging, métricas úteis, segurança e revisão de desempenho | Fluxos críticos e falhas relevantes são verificados automaticamente |
-| M9 — entrega contínua | Revisar gates, proteção de branch e processo de publicação | PR executa verificações adequadas ao produto; falhas impedem merge por política definida |
-| M10 — deploy e release | Ambiente de demonstração, operação, screenshots e release | Outra pessoa consegue acessar e reproduzir a versão documentada |
+## Concluído na branch de desenvolvimento
 
-**Próximo milestone:** M2. Antes de implementar tabelas, definir invariantes do ticket, transições de status, regras de visibilidade e dados obrigatórios com exemplos concretos. A escolha de autenticação vem no M3, mas os modelos devem permitir a associação de solicitante e responsável.
+- Fundação com frontend, API, PostgreSQL, Docker Compose, CI e health checks.
+- Modelagem de usuários, categorias, chamados, comentários, eventos e sessões.
+- Migration inicial com Alembic e seed fictício local.
+- Cadastro, login, logout, papéis e autorização no backend.
+- Criação, consulta, filtros, paginação, atribuição e transições de chamados.
+- Conversa pública, notas internas e histórico de alterações.
+- Interface para solicitante e equipe, com painel de contagens e administração básica.
+- Prazos simples de primeira resposta e resolução em horas corridas, com estado calculado por chamado.
+- Anexos locais com limite de 5 MB, tipos permitidos e download autorizado.
+- Testes de API para fluxo e permissões, lint, tipos e build.
+
+Essa lista descreve código existente na branch, ainda sujeito à revisão final, testes de ponta a ponta e publicação.
+
+## Para considerar o produto concluído
+
+| Etapa | Entrega verificável |
+| --- | --- |
+| Revisão do fluxo | Testar cadastro, abertura, atribuição, atendimento, resolução e encerramento no navegador; corrigir erros e estados de interface. |
+| Regras operacionais | Verificar os prazos de SLA e o envio de anexos no fluxo real; ampliar filtros úteis para a fila. |
+| Segurança e operação | Revisar sessões, validação, logs estruturados, limites de upload quando aplicável, migrações e erros. |
+| Qualidade | Ampliar testes para casos de autorização, transições, seed e migrações; incluir E2E de fluxo crítico se justificar manutenção. |
+| Apresentação | Revisar README, registrar decisões reais, capturar screenshots, preparar release e definir licença. |
+| Publicação | Publicar a branch por PR após CI e revisão. Um deploy público requer configuração segura e será decidido separadamente. |
+
+Integrações com IA, analytics e outros projetos continuam opcionais e fora do produto principal. A recuperação de senha também fica para uma etapa posterior se houver um meio real de enviar o link com segurança.
