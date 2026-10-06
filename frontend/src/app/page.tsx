@@ -18,9 +18,7 @@ async function getEnvironment(): Promise<Environment> {
     if (!response.ok) return "api-unavailable";
 
     const health = (await response.json()) as Health;
-    return health.status === "up" && health.database === "up"
-      ? "ready"
-      : "api-unavailable";
+    return health.status === "up" && health.database === "up" ? "ready" : "api-unavailable";
   } catch {
     return "api-unavailable";
   }
@@ -30,17 +28,17 @@ const plannedFlow = [
   {
     number: "01",
     title: "Registrar",
-    description: "Descrever a solicitação e reunir as informações do atendimento.",
+    description: "Identificar quem pediu ajuda, o problema relatado e seu impacto.",
   },
   {
     number: "02",
-    title: "Acompanhar",
-    description: "Dar visibilidade ao responsável e ao andamento do chamado.",
+    title: "Tratar",
+    description: "Registrar responsável, prioridade e mudanças durante o atendimento.",
   },
   {
     number: "03",
     title: "Resolver",
-    description: "Preservar a solução e as decisões no histórico.",
+    description: "Guardar a solução aplicada e as decisões que levaram a ela.",
   },
 ];
 
@@ -48,6 +46,7 @@ export default async function Home() {
   const environment = await getEnvironment();
   const ready = environment === "ready";
   const apiAvailable = environment !== "api-unavailable";
+  const apiDocsUrl = new URL("/docs", process.env.BACKEND_PUBLIC_URL ?? "http://localhost:8000");
 
   return (
     <main className="page-shell">
@@ -71,24 +70,28 @@ export default async function Home() {
           <p className="overline">Gestão de suporte de TI</p>
           <h1 id="page-title">Atendimento de TI sem perder o contexto.</h1>
           <p className="hero-description">
-            O LanternQueue está sendo construído para reunir solicitações, responsáveis e
-            histórico de atendimento em um só lugar, da abertura à resolução.
+            O LanternQueue está sendo construído para reunir solicitações, responsáveis e histórico
+            de atendimento em um só lugar, da abertura à resolução.
           </p>
           <div className="release-note">
             <span className="release-symbol" aria-hidden="true" />
-            <span>Em desenvolvimento. As funcionalidades de chamados serão implementadas em etapas.</span>
+            <span>
+              Em desenvolvimento. As funcionalidades de chamados serão implementadas em etapas.
+            </span>
           </div>
         </section>
 
         <section className="workflow" aria-labelledby="workflow-title">
           <div className="workflow-heading">
-            <p className="overline">Direção do produto</p>
-            <h2 id="workflow-title">Um fluxo claro, do início ao fim.</h2>
+            <p className="overline">Fluxo planejado</p>
+            <h2 id="workflow-title">O histórico deve acompanhar cada chamado.</h2>
           </div>
           <ol className="workflow-list">
             {plannedFlow.map((step) => (
               <li className="workflow-step" key={step.number}>
-                <span className="step-number" aria-hidden="true">{step.number}</span>
+                <span className="step-number" aria-hidden="true">
+                  {step.number}
+                </span>
                 <div>
                   <h3>{step.title}</h3>
                   <p>{step.description}</p>
@@ -96,14 +99,18 @@ export default async function Home() {
               </li>
             ))}
           </ol>
-          <p className="workflow-footnote">Este fluxo está no planejamento e será implementado em etapas.</p>
+          <p className="workflow-footnote">
+            As etapas acima ainda não estão disponíveis na aplicação.
+          </p>
         </section>
       </div>
 
       <section className="foundation" aria-labelledby="foundation-title">
         <div className="foundation-copy">
           <p className="overline">Versão atual</p>
-          <h2 id="foundation-title">{ready ? "Base técnica em operação." : "Estado da infraestrutura."}</h2>
+          <h2 id="foundation-title">
+            {ready ? "Base técnica em operação." : "Estado da infraestrutura."}
+          </h2>
           <p>A interface consulta a API, que verifica uma conexão real com o PostgreSQL.</p>
         </div>
         <div className="foundation-status">
@@ -117,15 +124,31 @@ export default async function Home() {
           </p>
           <dl className="service-list">
             <div className="service-row">
-              <dt>API <span>FastAPI</span></dt>
+              <dt>
+                API <span>FastAPI</span>
+              </dt>
               <dd className={apiAvailable ? "status-good" : "status-problem"}>
                 {apiAvailable ? "Respondendo" : "Sem resposta"}
               </dd>
             </div>
             <div className="service-row">
-              <dt>Banco de dados <span>PostgreSQL</span></dt>
-              <dd className={ready ? "status-good" : environment === "database-unavailable" ? "status-problem" : ""}>
-                {ready ? "Conectado" : environment === "database-unavailable" ? "Indisponível" : "Não verificado"}
+              <dt>
+                Banco de dados <span>PostgreSQL</span>
+              </dt>
+              <dd
+                className={
+                  ready
+                    ? "status-good"
+                    : environment === "database-unavailable"
+                      ? "status-problem"
+                      : ""
+                }
+              >
+                {ready
+                  ? "Conectado"
+                  : environment === "database-unavailable"
+                    ? "Indisponível"
+                    : "Não verificado"}
               </dd>
             </div>
           </dl>
@@ -134,7 +157,9 @@ export default async function Home() {
 
       <footer className="site-footer">
         <span>LanternQueue · Em desenvolvimento</span>
-        <a href="http://localhost:8000/docs">Documentação da API <span aria-hidden="true">↗</span></a>
+        <a href={apiDocsUrl.toString()}>
+          Documentação da API <span aria-hidden="true">↗</span>
+        </a>
       </footer>
     </main>
   );
