@@ -1,6 +1,6 @@
 # LanternQueue
 
-IT Service Management Platform.
+Plataforma de gestão de suporte de TI em desenvolvimento.
 
 **Estado atual:** fundação M0/M1. Existe uma API com verificações de saúde, uma página inicial que consulta a API e um PostgreSQL configurado no Docker Compose. Ainda não existem contas, autenticação, chamados, migrations ou dados de demonstração. Nenhum recurso de suporte de TI está pronto para uso.
 
