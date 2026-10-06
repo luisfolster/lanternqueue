@@ -1,8 +1,10 @@
 # LanternQueue
 
-Plataforma de gestão de suporte de TI em desenvolvimento.
+Plataforma de gestão de suporte de TI em desenvolvimento. O objetivo é manter solicitações, decisões e soluções no mesmo histórico, para que o atendimento não dependa de conversas dispersas.
 
 **Estado atual:** fundação M0/M1. Existe uma API com verificações de saúde, uma página inicial que consulta a API e um PostgreSQL configurado no Docker Compose. Ainda não existem contas, autenticação, chamados, migrations ou dados de demonstração. Nenhum recurso de suporte de TI está pronto para uso.
+
+O código é verificado por testes da API, lint, formatação, checagem de tipos, build do frontend e um teste de integração dos três serviços no GitHub Actions. Isso valida a fundação; não valida ainda um fluxo de chamados.
 
 ## Problema e direção
 
@@ -12,7 +14,7 @@ O projeto vai organizar solicitações de suporte de TI, atribuição de respons
 
 - Git para versionamento.
 - Docker Desktop com o comando `docker compose` para executar os três serviços localmente. No Windows, Docker Desktop requer o backend de virtualização adequado configurado.
-- Para rodar fora do Docker: Python 3.12, Node.js 22 e pnpm 11.19.0. Essa rota é opcional.
+- Para rodar fora do Docker: Python 3.12, Node.js 22 e pnpm 11.19.0. Essa rota é opcional. O CSS é próprio do projeto; Tailwind será avaliado quando houver componentes de produto a construir.
 
 ## Quick start no Windows / PowerShell
 
@@ -62,17 +64,19 @@ O frontend usa `http://localhost:8000` quando `BACKEND_INTERNAL_URL` não está 
 ```powershell
 backend/.venv/Scripts/python.exe -m pytest backend/tests
 backend/.venv/Scripts/python.exe -m ruff check backend
+backend/.venv/Scripts/python.exe -m ruff format --check backend
 Set-Location frontend
 pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm build
 ```
 
-Os testes atuais validam o contrato de liveness e readiness da API com um banco substituto. A conexão real é verificada pelo health check quando o Compose está ativo. Ainda não há teste E2E.
+Os testes atuais validam o contrato de liveness e readiness da API com um banco substituto. A conexão real é verificada pelo health check quando o Compose está ativo. O workflow em [.github/workflows/ci.yml](.github/workflows/ci.yml) também sobe o Compose e faz requisições ao frontend e à API. Ainda não há teste E2E de uma tarefa de usuário.
 
 ## Configuração
 
-Copie `.env.example` para `.env` antes do Compose. O arquivo `.env` é ignorado pelo Git. Os valores de exemplo servem apenas para desenvolvimento local. Não exponha essas credenciais em um ambiente acessível externamente. O frontend recebe `BACKEND_INTERNAL_URL` pelo Compose para fazer a consulta no servidor Next.js.
+Copie `.env.example` para `.env` antes do Compose. O arquivo `.env` é ignorado pelo Git. Os valores de exemplo servem apenas para desenvolvimento local. Não exponha essas credenciais em um ambiente acessível externamente. O frontend recebe `BACKEND_INTERNAL_URL` para consultar a API na rede do Compose e `BACKEND_PUBLIC_URL` para montar o link da documentação no navegador. Este último acompanha `BACKEND_PORT`.
 
 ## Estrutura
 
@@ -80,13 +84,14 @@ Copie `.env.example` para `.env` antes do Compose. O arquivo `.env` é ignorado 
 backend/        API FastAPI, configuração de banco e testes mínimos
 frontend/       página inicial Next.js e estilos
 docs/           arquitetura e milestones
+.github/        verificações automáticas
 compose.yaml    PostgreSQL, backend e frontend locais
 .env.example    parâmetros locais de exemplo
 ```
 
 ## Roadmap
 
-Os próximos passos estão em [docs/MILESTONES.md](docs/MILESTONES.md). Usuários, papéis, chamados, comentários, auditoria, SLA, anexos, dashboards, CI e deploy ainda são planejados. Redis, IA e integrações externas não participam da fundação.
+Os próximos passos estão em [docs/MILESTONES.md](docs/MILESTONES.md). Usuários, papéis, chamados, comentários, auditoria, SLA, anexos, dashboards e deploy ainda são planejados. Redis, IA e integrações externas não participam da fundação.
 
 ## Licença
 
