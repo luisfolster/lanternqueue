@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -50,6 +50,10 @@ class StatusInput(BaseModel):
     resolution: str | None = Field(default=None, max_length=10000)
 
 
+class PriorityInput(BaseModel):
+    priority: str
+
+
 class CommentInput(BaseModel):
     body: str = Field(min_length=1, max_length=10000)
     internal: bool = False
@@ -85,7 +89,7 @@ def ticket_view(ticket: Ticket) -> dict:
 def visible_ticket(ticket_id: int, user: User, db: Session) -> Ticket:
     ticket = db.get(Ticket, ticket_id)
     if ticket is None or (user.role == "end_user" and ticket.requester_id != user.id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Chamado não encontrado")
     return ticket
 
 
@@ -111,16 +115,16 @@ def create_category(
 ) -> dict:
     name = data.name.strip()
     if len(name) < 2:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Category name is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Informe o nome da categoria")
     if db.scalar(select(Category.id).where(func.lower(Category.name) == name.lower())):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Category already exists")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Categoria já existe")
     category = Category(name=name)
     db.add(category)
     try:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "Category already exists") from exc
+        raise HTTPException(status.HTTP_409_CONFLICT, "Categoria já existe") from exc
     return {"id": category.id, "name": category.name}
 
 
@@ -131,14 +135,14 @@ def create_ticket(
     db: Session = Depends(get_session),
 ) -> dict:
     if data.priority not in PRIORITIES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid priority")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Prioridade inválida")
     if len(data.title.strip()) < 5 or len(data.description.strip()) < 10:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Title and description are required"
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Informe título e descrição válidos"
         )
     category = db.get(Category, data.category_id)
     if category is None or not category.active:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid category")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Categoria inválida")
     ticket = Ticket(
         title=data.title.strip(),
         description=data.description.strip(),
@@ -160,7 +164,10 @@ def list_tickets(
     status_filter: str | None = Query(default=None, alias="status"),
     priority: str | None = None,
     category_id: int | None = None,
+    assignee_id: int | None = None,
+    unassigned: bool = False,
     q: str | None = Query(default=None, max_length=100),
+    order: str = "newest",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
@@ -169,22 +176,42 @@ def list_tickets(
         query = query.where(Ticket.requester_id == user.id)
     if status_filter:
         if status_filter not in TRANSITIONS:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid status")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Situação inválida")
         query = query.where(Ticket.status == status_filter)
     if priority:
         if priority not in PRIORITIES:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid priority")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Prioridade inválida")
         query = query.where(Ticket.priority == priority)
     if category_id:
         query = query.where(Ticket.category_id == category_id)
+    if assignee_id is not None and unassigned:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Filtros de responsável conflitantes"
+        )
+    if assignee_id is not None:
+        query = query.where(Ticket.assignee_id == assignee_id)
+    if unassigned:
+        query = query.where(Ticket.assignee_id.is_(None))
     if q:
         pattern = f"%{q}%"
         query = query.where(or_(Ticket.title.ilike(pattern), Ticket.description.ilike(pattern)))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    if order == "newest":
+        ordering = (Ticket.created_at.desc(), Ticket.id.desc())
+    elif order == "oldest":
+        ordering = (Ticket.created_at.asc(), Ticket.id.asc())
+    elif order == "priority":
+        rank = case(
+            (Ticket.priority == "critical", 0),
+            (Ticket.priority == "high", 1),
+            (Ticket.priority == "medium", 2),
+            else_=3,
+        )
+        ordering = (rank, Ticket.created_at.asc(), Ticket.id.asc())
+    else:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Ordem inválida")
     tickets = db.scalars(
-        query.order_by(Ticket.created_at.desc(), Ticket.id.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        query.order_by(*ordering).offset((page - 1) * page_size).limit(page_size)
     ).all()
     return {
         "items": [ticket_view(ticket) for ticket in tickets],
@@ -260,16 +287,22 @@ def assign_ticket(
 ) -> dict:
     ticket = visible_ticket(ticket_id, user, db)
     if ticket.status in {"resolved", "closed"}:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Cannot assign a resolved ticket")
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Não é possível atribuir um chamado resolvido"
+        )
     if user.role == "technician" and (
         data.assignee_id not in {None, user.id} or ticket.assignee_id not in {None, user.id}
     ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Technicians can only claim their own work")
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Técnicos só podem assumir seus próprios chamados"
+        )
     assignee = None
     if data.assignee_id is not None:
         assignee = db.get(User, data.assignee_id)
         if assignee is None or assignee.role not in {"technician", "admin"}:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Assignee must be staff")
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "Responsável deve ser da equipe"
+            )
     ticket.assignee_id = data.assignee_id
     ticket.status = "assigned" if data.assignee_id is not None else "open"
     ticket.updated_at = now()
@@ -293,11 +326,11 @@ def change_status(
 ) -> dict:
     ticket = visible_ticket(ticket_id, user, db)
     if data.status not in TRANSITIONS[ticket.status]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Invalid status transition")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Mudança de situação inválida")
     if data.status == "resolved" and (not data.resolution or not data.resolution.strip()):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Resolution is required")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Informe a resolução")
     if data.status == "assigned" and ticket.assignee_id is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Assign a technician first")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Atribua um técnico primeiro")
     ticket.status = data.status
     ticket.updated_at = now()
     if data.status == "resolved":
@@ -313,6 +346,27 @@ def change_status(
     return ticket_view(ticket)
 
 
+@router.patch("/tickets/{ticket_id}/priority")
+def change_priority(
+    ticket_id: int,
+    data: PriorityInput,
+    user: User = Depends(staff_user),
+    db: Session = Depends(get_session),
+) -> dict:
+    ticket = visible_ticket(ticket_id, user, db)
+    if ticket.status == "closed":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Chamado encerrado")
+    if data.priority not in PRIORITIES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Prioridade inválida")
+    if ticket.priority != data.priority:
+        previous = ticket.priority
+        ticket.priority = data.priority
+        ticket.updated_at = now()
+        event(db, ticket, user, "priority_changed", f"{previous} → {data.priority}")
+        db.commit()
+    return ticket_view(ticket)
+
+
 @router.post("/tickets/{ticket_id}/comments", status_code=201)
 def add_comment(
     ticket_id: int,
@@ -322,11 +376,11 @@ def add_comment(
 ) -> dict:
     ticket = visible_ticket(ticket_id, user, db)
     if ticket.status == "closed":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ticket is closed")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Chamado encerrado")
     if data.internal and user.role == "end_user":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Internal notes require staff access")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Notas internas exigem acesso da equipe")
     if not data.body.strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Message cannot be blank")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A mensagem não pode estar vazia")
     comment = Comment(
         ticket_id=ticket.id, author_id=user.id, body=data.body.strip(), internal=data.internal
     )
@@ -355,7 +409,32 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_sess
     if user.role == "end_user":
         query = query.where(Ticket.requester_id == user.id)
     counts = {key: value for key, value in db.execute(query)}
-    return {"counts": counts, "total": sum(counts.values()), "role": user.role}
+    summary = {"counts": counts, "total": sum(counts.values()), "role": user.role}
+    if user.role != "end_user":
+        active = ~Ticket.status.in_(("resolved", "closed"))
+        summary["unassigned"] = (
+            db.scalar(
+                select(func.count()).select_from(Ticket).where(active, Ticket.assignee_id.is_(None))
+            )
+            or 0
+        )
+        summary["urgent"] = (
+            db.scalar(
+                select(func.count())
+                .select_from(Ticket)
+                .where(active, Ticket.priority.in_(("high", "critical")))
+            )
+            or 0
+        )
+        summary["assigned_to_me"] = (
+            db.scalar(
+                select(func.count())
+                .select_from(Ticket)
+                .where(active, Ticket.assignee_id == user.id)
+            )
+            or 0
+        )
+    return summary
 
 
 def valid_attachment(content: bytes, extension: str) -> bool:
@@ -383,19 +462,19 @@ def upload_attachment(
 ) -> dict:
     ticket = visible_ticket(ticket_id, user, db)
     if ticket.status == "closed":
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ticket is closed")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Chamado encerrado")
     name = (file.filename or "").replace("\\", "/").split("/")[-1].strip()
     if not name or len(name) > 120 or any(ord(char) < 32 for char in name):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid filename")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Nome de arquivo inválido")
     extension = Path(name).suffix.lower()
     if extension not in ATTACHMENT_TYPES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File type not allowed")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Tipo de arquivo não permitido")
     content = file.file.read(MAX_ATTACHMENT_BYTES + 1)
     if len(content) > MAX_ATTACHMENT_BYTES:
-        raise HTTPException(413, "File exceeds 5 MB")
+        raise HTTPException(413, "O arquivo excede 5 MB")
     if not content or not valid_attachment(content, extension):
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "File content does not match type"
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "O conteúdo não corresponde ao tipo de arquivo"
         )
     directory = Path(get_settings().attachment_dir)
     directory.mkdir(parents=True, exist_ok=True)
@@ -431,8 +510,8 @@ def download_attachment(
     visible_ticket(ticket_id, user, db)
     attachment = db.get(Attachment, attachment_id)
     if attachment is None or attachment.ticket_id != ticket_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Anexo não encontrado")
     path = Path(get_settings().attachment_dir) / attachment.stored_name
     if not path.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Attachment file not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Arquivo do anexo não encontrado")
     return FileResponse(path, media_type=attachment.content_type, filename=attachment.original_name)

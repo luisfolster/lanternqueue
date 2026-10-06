@@ -2,11 +2,11 @@
 
 LanternQueue é uma aplicação local para registrar e acompanhar solicitações de suporte de TI. Solicitantes abrem chamados e acompanham respostas; técnicos assumem o atendimento, registram notas internas e documentam a resolução; administradores organizam categorias e papéis.
 
-## Estado atual
+## Versão 1
 
 A aplicação permite cadastro, login, logout, criação e consulta de chamados, filtros, paginação, atribuição, transições de situação, mensagens, notas internas, anexos, histórico de alterações e administração básica. O backend aplica as regras de acesso. O banco usa migrations Alembic e dados fictícios locais.
 
-Ainda faltam recursos do escopo ampliado: recuperação de senha, observabilidade mais completa e deploy público. Veja [docs/MILESTONES.md](docs/MILESTONES.md). A stack local é uma demonstração funcional; não foi configurada para uso público com dados reais.
+Esta versão é uma demonstração funcional local, com código e verificações publicados no GitHub. O escopo e as extensões possíveis estão em [docs/MILESTONES.md](docs/MILESTONES.md). A configuração de demonstração não foi preparada para receber dados reais pela internet.
 
 ## Executar no Windows
 
@@ -51,7 +51,7 @@ Contas criadas pela tela de cadastro recebem o papel de solicitante. Apenas admi
 
 ## Desenvolvimento e testes
 
-Os prazos de primeira resposta e resolução usam horas corridas por prioridade. A primeira resposta exige uma mensagem pública da equipe; notas internas não param esse relógio. Anexos PDF, PNG, JPG e TXT têm limite de 5 MB, ficam em um volume local e só podem ser baixados por quem tem acesso ao chamado. As regras estão documentadas em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Os prazos de primeira resposta e resolução usam horas corridas por prioridade. A primeira resposta exige uma mensagem pública da equipe; notas internas não param esse relógio. Anexos PDF, PNG, JPG e TXT têm limite de 5 MB, ficam em um volume local e só podem ser baixados por quem tem acesso ao chamado. A fila permite filtrar por responsável e ordenar por data ou prioridade. As requisições da API geram logs JSON com identificador e duração. As regras estão documentadas em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic e PostgreSQL. Frontend: Next.js 16, React, TypeScript e CSS próprio. O backend guarda um hash `scrypt` da senha e apenas o hash SHA-256 dos tokens de sessão; o frontend mantém o token em cookie HttpOnly. O Redis foi adiado porque ainda não há trabalho assíncrono nem cache que o justifique.
 

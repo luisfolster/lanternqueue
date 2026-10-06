@@ -33,6 +33,15 @@ export type TicketDetail = Ticket & {
   }[];
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (!(init?.body instanceof FormData)) headers.set("Content-Type", "application/json");
@@ -43,8 +52,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(
+    throw new ApiError(
       typeof payload.detail === "string" ? payload.detail : `Erro ${response.status}`,
+      response.status,
     );
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);

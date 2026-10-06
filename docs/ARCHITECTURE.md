@@ -22,11 +22,11 @@ Em desenvolvimento local, as portas 3000 e 8000 ficam vinculadas ao loopback. Po
 ## Regras de domínio
 
 - Solicitantes veem apenas seus chamados. Técnicos e administradores podem ver a fila toda.
-- Apenas equipe pode atribuir e alterar a situação. Um técnico pode assumir o próprio trabalho; o administrador pode atribuir a qualquer membro da equipe.
+- Apenas equipe pode atribuir e alterar situação ou prioridade. Um técnico pode assumir o próprio trabalho; o administrador pode atribuir a qualquer membro da equipe.
 - Uma resolução exige texto. Chamados encerrados não aceitam novas mensagens.
 - Notas internas são invisíveis ao solicitante, inclusive o evento correspondente no histórico apresentado.
 - Categorias vêm do banco e somente administradores criam novas. O seed fornece exemplos locais.
-- A ordem de listagem é `created_at DESC, id DESC`; paginação usa página e tamanho (máximo 100). Para o volume esperado nesta demonstração, offset é simples e suficiente. Alterações simultâneas podem deslocar itens entre páginas.
+- A fila permite filtrar por situação, prioridade, categoria e responsável, além de buscar no título ou na descrição. Pode ordenar por data ou prioridade; paginação usa página e tamanho (máximo 100). Para o volume esperado nesta demonstração, offset é simples e suficiente. Alterações simultâneas podem deslocar itens entre páginas.
 - SLA usa horas corridas a partir da abertura: crítica 1h/8h, alta 4h/24h, média 8h/72h, baixa 24h/120h para primeira resposta/resolução. O relógio da resposta para na primeira mensagem pública da equipe, não em nota interna. Reabrir um chamado limpa a resolução registrada e seu estado de SLA. Ainda não há calendário de dias úteis nem pausa do prazo enquanto se aguarda o usuário.
 - Anexos aceitam PDF, PNG, JPG e TXT de até 5 MB. O servidor verifica a extensão e uma assinatura básica do conteúdo, grava com nome aleatório em volume separado e mantém o nome original apenas como metadado. O download exige acesso ao chamado. Não há varredura antivírus; o volume precisa entrar na estratégia de backup junto com o banco antes de qualquer deploy.
 
@@ -41,14 +41,14 @@ resolved → closed | in_progress
 closed → sem novas transições
 ```
 
-A atribuição altera a situação para `assigned`; remover o responsável retorna para `open`. Cada mudança relevante cria um `TicketEvent` na mesma transação do chamado. O histórico é uma trilha de ações de produto, não um log de todas as leituras ou de cada campo SQL.
+A atribuição altera a situação para `assigned`; remover o responsável retorna para `open`. Cada mudança relevante, inclusive a prioridade, cria um `TicketEvent` na mesma transação do chamado. O histórico é uma trilha de ações de produto, não um log de todas as leituras ou de cada campo SQL. Os logs JSON de requisição registram método, caminho, duração, status e identificador, sem incluir senha, token ou corpo da mensagem.
 
 ## Escolhas proporcionais ao projeto
 
 O backend é um monólito modular. Endpoints, autenticação e modelos estão separados; não há camadas de repository ou service que apenas repassem métodos. A primeira migração cria as tabelas de domínio e pode ser reproduzida em um banco vazio. O CSS é próprio do projeto, sem dependência de Tailwind porque a interface atual não precisa dela. Redis fica fora até aparecer cache ou trabalho em segundo plano real.
 
-A documentação OpenAPI é gerada pelo FastAPI em `/docs`. Os testes exercitam as regras principais com um banco SQLite temporário; o CI também sobe PostgreSQL pelo Compose e verifica a aplicação inteira por HTTP. O teste SQLite acelera o ciclo local, mas diferenças específicas de SQL ou migração exigem verificação no PostgreSQL real.
+A documentação OpenAPI é gerada pelo FastAPI em `/docs`. Os testes exercitam as regras principais com um banco SQLite temporário; o CI também sobe PostgreSQL pelo Compose e verifica health check, login e leitura da fila por HTTP. O teste SQLite acelera o ciclo local, mas diferenças específicas de SQL ou migração exigem verificação no PostgreSQL real.
 
 ## Limites conhecidos
 
-Esta é uma aplicação de demonstração local. Falta fluxo de recuperação de senha, rate limit e operação de produção. O seed usa credenciais públicas e deve permanecer desligado fora do ambiente de demonstração. O proxy define `Secure` no cookie em modo de produção, mas um deploy real ainda exige HTTPS, configuração de segredos, armazenamento e política operacional. Não há promessa de deploy público nesta branch.
+Esta é uma aplicação de demonstração local. Recuperação de senha, rate limit e operação de produção estão fora do escopo da versão 1. O seed usa credenciais públicas e deve permanecer desligado fora do ambiente de demonstração. O proxy define `Secure` no cookie em modo de produção, mas um deploy real ainda exige HTTPS, configuração de segredos, armazenamento e política operacional.

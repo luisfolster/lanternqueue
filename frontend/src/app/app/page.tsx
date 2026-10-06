@@ -4,10 +4,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { api, Category, priorityLabel, statusLabel, Ticket, User } from "@/lib/types";
+import { api, ApiError, Category, priorityLabel, statusLabel, Ticket, User } from "@/lib/types";
 
 type TicketPage = { items: Ticket[]; page: number; page_size: number; total: number };
-type Dashboard = { counts: Record<string, number>; total: number; role: string };
+type Dashboard = {
+  counts: Record<string, number>;
+  total: number;
+  role: string;
+  unassigned?: number;
+  urgent?: number;
+  assigned_to_me?: number;
+};
 
 export default function Workspace() {
   const router = useRouter();
@@ -18,6 +25,8 @@ export default function Workspace() {
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [assignment, setAssignment] = useState("");
+  const [order, setOrder] = useState("newest");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -30,14 +39,17 @@ export default function Workspace() {
     if (status) params.set("status", status);
     if (priority) params.set("priority", priority);
     if (categoryId) params.set("category_id", categoryId);
+    if (assignment === "mine" && user) params.set("assignee_id", String(user.id));
+    if (assignment === "unassigned") params.set("unassigned", "true");
     if (query) params.set("q", query);
+    params.set("order", order);
     try {
       setTickets(await api<TicketPage>(`/tickets?${params}`));
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível carregar chamados.");
     }
-  }, [page, query, status, priority, categoryId]);
+  }, [page, query, status, priority, categoryId, assignment, order, user]);
 
   useEffect(() => {
     async function load() {
@@ -50,8 +62,12 @@ export default function Workspace() {
         setUser(person);
         setCategories(kinds);
         setDashboard(summary);
-      } catch {
-        router.replace("/login");
+      } catch (cause) {
+        if (cause instanceof ApiError && cause.status === 401) router.replace("/login");
+        else
+          setError(
+            cause instanceof Error ? cause.message : "Não foi possível abrir a área de trabalho.",
+          );
       } finally {
         setLoading(false);
       }
@@ -93,7 +109,13 @@ export default function Workspace() {
   if (loading || !user)
     return (
       <main className="app-shell">
-        <p className="loading-state">Carregando área de trabalho…</p>
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : (
+          <p className="loading-state">Carregando área de trabalho…</p>
+        )}
       </main>
     );
 
@@ -144,6 +166,18 @@ export default function Workspace() {
             <dt>Resolvidos</dt>
             <dd>{(dashboard.counts.resolved ?? 0) + (dashboard.counts.closed ?? 0)}</dd>
           </div>
+          {user.role !== "end_user" && (
+            <>
+              <div>
+                <dt>Sem responsável</dt>
+                <dd>{dashboard.unassigned ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Alta prioridade</dt>
+                <dd>{dashboard.urgent ?? 0}</dd>
+              </div>
+            </>
+          )}
         </dl>
       )}
       {showForm && (
@@ -259,6 +293,36 @@ export default function Workspace() {
               ))}
             </select>
           </label>
+          {user.role !== "end_user" && (
+            <label>
+              Responsável
+              <select
+                value={assignment}
+                onChange={(event) => {
+                  setAssignment(event.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                <option value="mine">Atribuídos a mim</option>
+                <option value="unassigned">Sem responsável</option>
+              </select>
+            </label>
+          )}
+          <label>
+            Ordem
+            <select
+              value={order}
+              onChange={(event) => {
+                setOrder(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="newest">Mais recentes</option>
+              <option value="oldest">Mais antigos</option>
+              <option value="priority">Prioridade</option>
+            </select>
+          </label>
         </div>
         {error && (
           <p className="form-error" role="alert">
@@ -268,7 +332,7 @@ export default function Workspace() {
         {tickets?.items.length === 0 && (
           <p className="empty-state">
             Nenhum chamado encontrado.{" "}
-            {query || status || priority || categoryId
+            {query || status || priority || categoryId || assignment
               ? "Altere os filtros para procurar novamente."
               : "Abra um chamado para começar."}
           </p>

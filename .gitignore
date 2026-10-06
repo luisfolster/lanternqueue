@@ -21,3 +21,4 @@ Thumbs.db
 *.sqlite3
 *.db
 backend/attachments/
+backend/.tmp-pytest/

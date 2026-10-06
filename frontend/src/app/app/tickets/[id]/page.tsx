@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
-import { api, priorityLabel, statusLabel, TicketDetail, User } from "@/lib/types";
+import { api, ApiError, priorityLabel, statusLabel, TicketDetail, User } from "@/lib/types";
 
 const nextStatuses: Record<string, string[]> = {
   open: [],
@@ -25,6 +25,10 @@ function eventDescription(action: string, detail: string | null) {
       return "removeu a atribuição";
     case "status_changed":
       return `alterou a situação para ${statusLabel[detail ?? ""] ?? detail}`;
+    case "priority_changed": {
+      const [before, after] = (detail ?? "").split(" → ");
+      return `alterou a prioridade de ${priorityLabel[before] ?? before} para ${priorityLabel[after] ?? after}`;
+    }
     case "internal_note":
       return "registrou uma nota interna";
     case "commented":
@@ -57,8 +61,7 @@ export default function TicketPage() {
         setStaff((await api<User[]>("/users")).filter((item) => item.role !== "end_user"));
       setError("");
     } catch (cause) {
-      if (cause instanceof Error && cause.message.includes("Authentication"))
-        router.replace("/login");
+      if (cause instanceof ApiError && cause.status === 401) router.replace("/login");
       else
         setError(cause instanceof Error ? cause.message : "Não foi possível carregar o chamado.");
     }
@@ -99,6 +102,21 @@ export default function TicketPage() {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível alterar a situação.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changePriority(value: string) {
+    setBusy(true);
+    try {
+      await api(`/tickets/${id}/priority`, {
+        method: "PATCH",
+        body: JSON.stringify({ priority: value }),
+      });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível alterar a prioridade.");
     } finally {
       setBusy(false);
     }
@@ -155,9 +173,9 @@ export default function TicketPage() {
           {error}
         </p>
       )}
-      {!ticket ? (
+      {!ticket && !error ? (
         <p className="loading-state">Carregando chamado…</p>
-      ) : (
+      ) : ticket ? (
         <>
           <section className="ticket-heading">
             <p className="overline">Chamado #{ticket.id.toString().padStart(4, "0")}</p>
@@ -306,6 +324,20 @@ export default function TicketPage() {
               {isStaff && ticket.status !== "closed" && (
                 <section className="work-panel">
                   <h2>Atendimento</h2>
+                  <label>
+                    Prioridade
+                    <select
+                      value={ticket.priority}
+                      onChange={(event) => void changePriority(event.target.value)}
+                      disabled={busy}
+                    >
+                      {Object.entries(priorityLabel).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   {user?.role === "admin" && (
                     <label>
                       Responsável
@@ -364,7 +396,7 @@ export default function TicketPage() {
             </aside>
           </div>
         </>
-      )}
+      ) : null}
     </main>
   );
 }

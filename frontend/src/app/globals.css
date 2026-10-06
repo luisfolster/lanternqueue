@@ -348,6 +348,7 @@ textarea {
 }
 .summary-strip {
   display: flex;
+  flex-wrap: wrap;
   gap: 42px;
   margin: 0 0 30px;
   padding: 18px 0;

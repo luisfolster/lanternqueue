@@ -1,31 +1,21 @@
-# Etapas do LanternQueue
+# Escopo do LanternQueue
 
-O roadmap acompanha as entregas deste produto. Cada etapa deve terminar com uma demonstração verificável e documentação correspondente.
+## Versão 1: demonstração local
 
-## Concluído na branch de desenvolvimento
+- Monorepo com frontend Next.js, API FastAPI, PostgreSQL, Docker Compose, migrations Alembic e CI.
+- Cadastro, login, logout, sessões revogáveis, três papéis e autorização aplicada na API.
+- Chamados com categorias, prioridade, atribuição, transições, resolução e encerramento.
+- Comentários públicos, notas internas, histórico de alterações e anexos com acesso controlado.
+- Prazos de primeira resposta e resolução por prioridade, calculados em horas corridas.
+- Fila com busca, filtros, ordenação e paginação; painel de contagens para solicitantes e equipe.
+- Administração de categorias e papéis; dados fictícios opcionais para demonstração.
+- Testes do fluxo e permissões, lint, formatação, checagem de tipos, build e smoke test com Compose.
+- Logs JSON por requisição, com identificador de correlação e duração, sem registrar senha ou token.
 
-- Fundação com frontend, API, PostgreSQL, Docker Compose, CI e health checks.
-- Modelagem de usuários, categorias, chamados, comentários, eventos e sessões.
-- Migration inicial com Alembic e seed fictício local.
-- Cadastro, login, logout, papéis e autorização no backend.
-- Criação, consulta, filtros, paginação, atribuição e transições de chamados.
-- Conversa pública, notas internas e histórico de alterações.
-- Interface para solicitante e equipe, com painel de contagens e administração básica.
-- Prazos simples de primeira resposta e resolução em horas corridas, com estado calculado por chamado.
-- Anexos locais com limite de 5 MB, tipos permitidos e download autorizado.
-- Testes de API para fluxo e permissões, lint, tipos e build.
+O fluxo completo foi exercitado localmente no navegador. A CI verifica a integração entre frontend, API e banco a cada PR.
 
-Essa lista descreve código existente na branch, ainda sujeito à revisão final, testes de ponta a ponta e publicação.
+## Fora do escopo desta versão
 
-## Para considerar o produto concluído
+Um serviço público exigiria domínio, HTTPS, gestão de segredos, backup e operação contínua. A versão 1 foi preparada para execução local e revisão do código no GitHub; não deve ser exposta na internet com a configuração de demonstração.
 
-| Etapa | Entrega verificável |
-| --- | --- |
-| Revisão do fluxo | Testar cadastro, abertura, atribuição, atendimento, resolução e encerramento no navegador; corrigir erros e estados de interface. |
-| Regras operacionais | Verificar os prazos de SLA e o envio de anexos no fluxo real; ampliar filtros úteis para a fila. |
-| Segurança e operação | Revisar sessões, validação, logs estruturados, limites de upload quando aplicável, migrações e erros. |
-| Qualidade | Ampliar testes para casos de autorização, transições, seed e migrações; incluir E2E de fluxo crítico se justificar manutenção. |
-| Apresentação | Revisar README, registrar decisões reais, capturar screenshots, preparar release e definir licença. |
-| Publicação | Publicar a branch por PR após CI e revisão. Um deploy público requer configuração segura e será decidido separadamente. |
-
-Integrações com IA, analytics e outros projetos continuam opcionais e fora do produto principal. A recuperação de senha também fica para uma etapa posterior se houver um meio real de enviar o link com segurança.
+Recuperação de senha depende de um canal de e-mail real. Redis, IA, analytics e integrações com outros projetos só serão adicionados se houver uma necessidade concreta. Esses itens não fazem parte dos critérios de conclusão da versão 1.

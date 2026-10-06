@@ -1,3 +1,7 @@
+import shutil
+import tempfile
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -9,9 +13,10 @@ from app.main import app
 from app.models import Base, Category, User
 
 
-def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
+def test_ticket_lifecycle_and_visibility(monkeypatch):
+    attachment_dir = Path(tempfile.mkdtemp(prefix="attachment-test-", dir=Path(__file__).parent))
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
-    monkeypatch.setenv("ATTACHMENT_DIR", str(tmp_path))
+    monkeypatch.setenv("ATTACHMENT_DIR", str(attachment_dir))
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
@@ -53,6 +58,7 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
             },
         )
         assert created_user.status_code == 201
+        assert len(created_user.headers["X-Request-ID"]) == 32
         assert created_user.json()["role"] == "end_user"
 
         def auth(email):
@@ -115,7 +121,19 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
             ).status_code
             == 422
         )
+        assert (
+            client.post(
+                f"/api/v1/tickets/{ticket_id}/attachments",
+                headers=requester,
+                files={"file": ("grande.txt", b"a" * (5 * 1024 * 1024 + 1), "text/plain")},
+            ).status_code
+            == 413
+        )
         assert client.get("/api/v1/tickets", headers=requester).json()["total"] == 1
+        assert client.get("/api/v1/tickets?unassigned=true", headers=admin).json()["total"] == 1
+        assert client.get("/api/v1/tickets?order=priority", headers=admin).status_code == 200
+        assert client.get("/api/v1/tickets?order=unknown", headers=admin).status_code == 422
+        assert client.get("/api/v1/dashboard", headers=admin).json()["unassigned"] == 1
         assert client.get("/api/v1/tickets", headers=other_requester).json()["total"] == 0
         assert (
             client.get(f"/api/v1/tickets/{ticket_id}", headers=other_requester).status_code == 404
@@ -137,6 +155,14 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
                 f"/api/v1/tickets/{ticket_id}/assignment",
                 headers=requester,
                 json={"assignee_id": technician_id},
+            ).status_code
+            == 403
+        )
+        assert (
+            client.patch(
+                f"/api/v1/tickets/{ticket_id}/priority",
+                headers=requester,
+                json={"priority": "critical"},
             ).status_code
             == 403
         )
@@ -165,6 +191,20 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
             == 200
         )
         assert (
+            client.get(f"/api/v1/tickets?assignee_id={technician_id}", headers=admin).json()[
+                "total"
+            ]
+            == 1
+        )
+        priority_change = client.patch(
+            f"/api/v1/tickets/{ticket_id}/priority",
+            headers=technician,
+            json={"priority": "critical"},
+        )
+        assert priority_change.status_code == 200
+        assert priority_change.json()["priority"] == "critical"
+        assert client.get("/api/v1/dashboard", headers=admin).json()["urgent"] == 1
+        assert (
             client.patch(
                 f"/api/v1/tickets/{ticket_id}/status",
                 headers=technician,
@@ -190,7 +230,7 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
         )
         detail = client.get(f"/api/v1/tickets/{ticket_id}", headers=requester).json()
         assert detail["comments"] == []
-        assert len(detail["events"]) == 4
+        assert len(detail["events"]) == 5
         assert detail["attachments"][0]["name"] == "diagnostico.txt"
         assert detail["sla"]["first_response_state"] == "pending"
         assert (
@@ -252,3 +292,4 @@ def test_ticket_lifecycle_and_visibility(monkeypatch, tmp_path):
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
+        shutil.rmtree(attachment_dir)
