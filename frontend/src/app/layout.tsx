@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LanternQueue",
-  description: "IT Service Management Platform",
+  title: "LanternQueue | Gestão de suporte de TI",
+  description: "Plataforma de gestão de suporte de TI em desenvolvimento.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
