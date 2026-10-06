@@ -1,59 +1,107 @@
 export const dynamic = "force-dynamic";
 
 type Health = { status: string; database: string };
+type Environment = "ready" | "database-unavailable" | "api-unavailable";
 
-async function getHealth(): Promise<Health | null> {
+async function getEnvironment(): Promise<Environment> {
   const baseUrl = process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000";
+
   try {
     const response = await fetch(`${baseUrl}/api/v1/health`, {
       cache: "no-store",
       signal: AbortSignal.timeout(3000),
     });
-    if (!response.ok) return null;
-    return (await response.json()) as Health;
+
+    if (response.status === 503) return "database-unavailable";
+    if (!response.ok) return "api-unavailable";
+
+    const health = (await response.json()) as Health;
+    return health.status === "up" && health.database === "up"
+      ? "ready"
+      : "api-unavailable";
   } catch {
-    return null;
+    return "api-unavailable";
   }
 }
 
 export default async function Home() {
-  const health = await getHealth();
-  const online = health?.status === "up" && health.database === "up";
+  const environment = await getEnvironment();
+  const ready = environment === "ready";
+  const apiAvailable = environment !== "api-unavailable";
 
   return (
     <main className="page-shell">
       <header className="site-header">
-        <div className="brand" aria-label="LanternQueue">
-          <span className="brand-mark" aria-hidden="true">LQ</span>
+        <div className="wordmark">
+          <span className="wordmark-symbol" aria-hidden="true" />
           <span>LanternQueue</span>
         </div>
-        <span className="stage-label">Fundação · M0/M1</span>
+        <div className="header-meta">
+          <span>Projeto 01</span>
+          <span className="header-divider" aria-hidden="true" />
+          <span>Prévia local</span>
+        </div>
       </header>
 
-      <section className="intro" aria-labelledby="page-title">
-        <p className="eyebrow">IT Service Management Platform</p>
-        <h1 id="page-title">Suporte de TI com contexto e continuidade.</h1>
-        <p className="intro-copy">
-          A fundação da plataforma está em desenvolvimento. O fluxo de chamados, usuários e
-          permissões será construído nos próximos milestones.
-        </p>
-      </section>
+      <div className="content-grid">
+        <section className="intro" aria-labelledby="page-title">
+          <p className="section-index">01 / Fundação</p>
+          <h1 id="page-title">Primeiro, fazer a base funcionar.</h1>
+          <p className="intro-copy">
+            Ainda não dá para abrir chamados. Hoje, esta tela confere se o site consegue
+            consultar a API e se a API alcança o banco de dados.
+          </p>
+        </section>
 
-      <section className="status-panel" aria-labelledby="status-title">
-        <div>
-          <p className="eyebrow">Estado do ambiente</p>
-          <h2 id="status-title">Conexão entre serviços</h2>
-          <p>Esta página consulta a API; a API verifica uma consulta real ao PostgreSQL.</p>
-        </div>
-        <div className={`status-badge ${online ? "is-online" : "is-offline"}`} role="status">
-          <span className="status-dot" aria-hidden="true" />
-          {online ? "API e banco disponíveis" : "API ou banco indisponível"}
-        </div>
+        <section className="environment" aria-labelledby="environment-title">
+          <div className="environment-topline">
+            <p className="section-index">Verificação local</p>
+            <span className="live-marker">Ao abrir esta página</span>
+          </div>
+          <h2 id="environment-title">O que está funcionando</h2>
+          <p className={`environment-summary ${ready ? "summary-ready" : "summary-attention"}`} role="status">
+            <span className="summary-indicator" aria-hidden="true" />
+            {ready
+              ? "API e banco disponíveis"
+              : environment === "database-unavailable"
+                ? "Banco indisponível"
+                : "API indisponível"}
+          </p>
+
+          <dl className="service-list">
+            <div className="service-row">
+              <dt><span className="service-number">01</span> Interface</dt>
+              <dd>Esta página</dd>
+              <dd className="service-state">Aberta</dd>
+            </div>
+            <div className="service-row">
+              <dt><span className="service-number">02</span> API</dt>
+              <dd>FastAPI</dd>
+              <dd className={`service-state ${apiAvailable ? "state-good" : "state-problem"}`}>
+                {apiAvailable ? "Respondendo" : "Sem resposta"}
+              </dd>
+            </div>
+            <div className="service-row">
+              <dt><span className="service-number">03</span> Dados</dt>
+              <dd>PostgreSQL</dd>
+              <dd className={`service-state ${ready ? "state-good" : environment === "database-unavailable" ? "state-problem" : ""}`}>
+                {ready ? "Conectado" : environment === "database-unavailable" ? "Indisponível" : "Não verificado"}
+              </dd>
+            </div>
+          </dl>
+          <p className="environment-footnote">A API faz uma consulta real ao banco antes de confirmar a conexão.</p>
+        </section>
+      </div>
+
+      <section className="next-step" aria-labelledby="next-title">
+        <p className="section-index">Em seguida / M2</p>
+        <h2 id="next-title">Dar forma aos chamados.</h2>
+        <p>Modelar usuários, categorias e chamados; depois, criar e consultar um chamado pela API.</p>
       </section>
 
       <footer className="site-footer">
-        <span>Primeira etapa: infraestrutura local e verificação de saúde.</span>
-        <a href="http://localhost:8000/docs">Documentação da API</a>
+        <span>LanternQueue · desenvolvimento local</span>
+        <a href="http://localhost:8000/docs">Ver documentação da API <span aria-hidden="true">↗</span></a>
       </footer>
     </main>
   );
