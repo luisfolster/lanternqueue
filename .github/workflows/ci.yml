@@ -58,7 +58,13 @@ jobs:
       - name: Smoke test
         run: |
           curl --fail --silent --show-error http://127.0.0.1:8000/api/v1/health | grep '"database":"up"'
-          curl --fail --silent --show-error http://127.0.0.1:3000/ | grep 'API e banco disponíveis'
+          curl --fail --silent --show-error http://127.0.0.1:3000/ | grep 'Atendimento sem perder o contexto'
+          curl --fail --silent --show-error --cookie-jar /tmp/lanternqueue.cookies \
+            --header 'content-type: application/json' \
+            --data '{"email":"marina@example.test","password":"lanternqueue-demo-2026"}' \
+            http://127.0.0.1:3000/api/v1/sessions | grep 'marina@example.test'
+          curl --fail --silent --show-error --cookie /tmp/lanternqueue.cookies \
+            http://127.0.0.1:3000/api/v1/tickets | grep 'Notebook'
       - name: Show logs on failure
         if: failure()
         run: docker compose logs --tail=100

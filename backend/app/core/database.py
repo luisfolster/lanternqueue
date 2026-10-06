@@ -2,6 +2,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 
@@ -13,3 +14,8 @@ def get_engine() -> Engine:
         pool_pre_ping=True,
         connect_args={"connect_timeout": 3},
     )
+
+
+def get_session():
+    with Session(get_engine()) as session:
+        yield session
